@@ -24,7 +24,13 @@ using System.Text;
 
 namespace Origami.Asm32
 {
-    class Instruction0F
+    class Symbol : Operand
     {
+        String name;
+
+        public Symbol(string _name)
+        {
+            name = _name;
+        }
     }
 }
