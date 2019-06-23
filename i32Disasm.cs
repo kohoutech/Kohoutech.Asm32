@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
 Origami Asm32 Library
-Copyright (C) 1998-2018  George E Greaney
+Copyright (C) 1998-2019  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -28,56 +28,98 @@ using System.Text;
 namespace Origami.Asm32
 {
     class i32Disasm
-    {        
+    {
         public byte[] srcBuf;           //the bytes being disassembled
         public uint srcpos;             //cur pos in source buf
+        public uint codebase;           //addr of source buf in mem
         public uint codeaddr;           //cur addr of instr in mem
-        public List<byte> instrBytes;    //the bytes that have been decoded for this instruction        
-        
+        public List<byte> instrBytes;   //the bytes that have been decoded for this instruction        
+
         public Operand op1;
         public Operand op2;
         public Operand op3;
-        
-        public Segment.SEG segprefix;
-        public Instruction.LOOPPREFIX loopprefix;
-        public bool lockprefix;
-        public bool operandSizeOverride;
-        public bool addressSizeOverride;
-        
+
+        private Segment.SEG segprefix;
+        private Instruction.LOOPPREFIX loopprefix;
+        private bool lockprefix;
+        private bool operandSizeOverride;
+        private bool addressSizeOverride;
+
         private bool useModrm32;
 
-        public i32Disasm(byte[] _source, uint _srcpos)
+        //- public API --------------------------------------------------------
+
+        //TO USE: first create a i32Disasm with a array of bytes to be disassembled as the source buffer, 
+        //with an optional starting pos in the array (defaults to the start of buf is not given)
+        //you can also supply the code address of the buffer for CALL/JUMP instructions to get the correct targets
+        //since the source buffer code offset may not be 0 (fx, in an .exe file, the code offset is usually located 
+        //at 0x400000 in the .exe file's code section
+
+        //then call <getInstr> to disassemble the bytes at the current pos in the source buffer into an Intruction object
+        //each call will advance the current buffer pos to the next byte after the instruction's bytes
+        //so that subsequent calls will get the following instructions; the source pos can be reset 
+        //to skip over or back up to another place in the source buf while disassembling.
+
+        //cons with a source array of bytes to disassemble, a pos to start disassembling at, and the code offset of the source
+        public i32Disasm(byte[] _source, uint _srcpos, uint _codebase)
         {
             srcBuf = _source;           //set source buf + pos in buf when we start disassembling
             srcpos = _srcpos;           //source pos can be changed later if we need to skip over some bytes
 
-            instrBytes = new List<byte>();            
+            codebase = _codebase;
+            codeaddr = codebase + srcpos;
 
-            codeaddr = 0;
-
-            segprefix = Segment.SEG.DS;
-            loopprefix = Instruction.LOOPPREFIX.None;
-            lockprefix = false;
-            operandSizeOverride = false;
-            addressSizeOverride = false;
-            useModrm32 = false;            
-        }
-
-        public Instruction getInstr(uint _codepos)
-        {
-            Instruction instr = null;
             instrBytes = new List<byte>();
 
-            uint instrAddr = _codepos;
-            codeaddr = _codepos;
             segprefix = Segment.SEG.DS;
             loopprefix = Instruction.LOOPPREFIX.None;
             lockprefix = false;
             operandSizeOverride = false;
             addressSizeOverride = false;
             useModrm32 = false;
+        }
 
+        //cons with the code offset default = 0;
+        public i32Disasm(byte[] source, uint srcpos)
+            : this(source, srcpos, 0)
+        {
+        }
 
+        //cons with the source pos at the start of the source buf & the code offset default = 0;
+        public i32Disasm(byte[] source)
+            : this(source, 0)
+        {
+        }
+
+        //reset the current pos in the source buf to a new location for skipping / backing up
+        public void setSourcePos(uint _srcpos)
+        {
+            srcpos = _srcpos;
+            codeaddr = codebase + srcpos;
+        }
+
+        //this will disassemble the bytes in the sourc ebuf at the current pos into an intruction object
+        //and advance the current pos to the next bytes following this instruction
+        //if we read past the end of the source buf in disassembling bytes, return null
+        //subsequent calls to <getInstr> will also return null (until the source pos is reset)
+        public Instruction getInstr()
+        {
+            Instruction instr = null;
+
+            if (srcpos >= srcBuf.Length)        //if we already are at end of source buf, return null
+            {
+                return null;
+            }
+
+            instrBytes = new List<byte>();
+
+            uint instrAddr = codeaddr;
+            segprefix = Segment.SEG.DS;
+            loopprefix = Instruction.LOOPPREFIX.None;
+            lockprefix = false;
+            operandSizeOverride = false;
+            addressSizeOverride = false;
+            useModrm32 = false;
 
             uint b = getNextByte();
 
@@ -149,6 +191,11 @@ namespace Origami.Asm32
                 instr = opfx(b);
             }
 
+            if (srcpos > srcBuf.Length)        //if we have gone past the end of source buf, return null
+            {
+                return null;
+            }
+
             if (instr == null)
             {
                 instr = new UnknownOp();
@@ -161,20 +208,25 @@ namespace Origami.Asm32
             return instr;
         }
 
-//- source bytes --------------------------------------------------------------
+        //- source bytes --------------------------------------------------------------
 
-        public uint getNextByte()
+        //if we go past the end of the buf, return 0; <getInstr> will detect this & return null        
+        private uint getNextByte()
         {
-            uint b = (uint)srcBuf[srcpos++];
+            uint b = 0;
+            if (srcpos < srcBuf.Length)
+            {
+               b = (uint)srcBuf[srcpos++];
+               codeaddr++;
+            }
             instrBytes.Add((byte)b);
-            codeaddr++;
             return b;
         }
 
-//- prefixing -----------------------------------------------------------------
+        //- prefixing -----------------------------------------------------------------
 
         //4 prefix groups, successive bytes in the same group will overwrite prev prefix byte
-        public void setPrefix(uint b)
+        private void setPrefix(uint b)
         {
             if (b == 0xf0) lockprefix = true;             //group1
 
@@ -186,17 +238,17 @@ namespace Origami.Asm32
             if (b == 0x36) segprefix = Segment.SEG.SS;
             if (b == 0x3e) segprefix = Segment.SEG.DS;
             if (b == 0x64) segprefix = Segment.SEG.FS;
-            if (b == 0x65) segprefix = Segment.SEG.GS;                
-            
+            if (b == 0x65) segprefix = Segment.SEG.GS;
+
             if (b == 0x66) operandSizeOverride = true;      //group 3
             if (b == 0x67) addressSizeOverride = true;      //group 4
         }
 
-//- addressing ----------------------------------------------------------------
+        //- addressing ----------------------------------------------------------------
 
         readonly int[] sibscale = { 1, 2, 4, 8 };
 
-        public Memory getSib(uint mode, uint rm, OPSIZE size)
+        private Memory getSib(uint mode, uint rm, OPSIZE size)
         {
             Memory result = null;
             Immediate imm = null;
@@ -212,7 +264,7 @@ namespace Origami.Asm32
                     result = new Memory(getReg(OPSIZE.DWord, rm), null, Memory.Mult.NONE, null, size, segprefix);
                     break;
                 case 0x04:
-                    uint sib = getNextByte();               
+                    uint sib = getNextByte();
                     uint scale = (sib / 0x40) % 0x04;       //xx------
                     uint siba = (sib % 0x40) / 0x08;        //--xxx---
                     uint sibb = (sib % 0x08);               //-----xxx
@@ -277,7 +329,7 @@ namespace Origami.Asm32
             return result;
         }
 
-        public Operand getModrm(uint modrm, OPSIZE size)
+        private Operand getModrm(uint modrm, OPSIZE size)
         {
             Operand result = null;
             uint mode = (modrm / 0x40) % 0x04;
@@ -293,9 +345,9 @@ namespace Origami.Asm32
             return result;
         }
 
-//- opcodes -------------------------------------------------------------------
+        //- opcodes -------------------------------------------------------------------
 
-        public Instruction ArithmeticOps(uint op, Operand op1, Operand op2)
+        private Instruction ArithmeticOps(uint op, Operand op1, Operand op2)
         {
             Instruction instr = null;
             switch (op)
@@ -330,7 +382,7 @@ namespace Origami.Asm32
 
         //0x0f starts two byte opcodes and should never get here
         //0X26, 0x2e, 0x36, 0x3e are prefix bytes and should never get here            
-        public Instruction op03x(uint b)
+        private Instruction op03x(uint b)
         {
             Instruction instr = null;
             uint bhi = (b / 0x08) % 0x08;   //--bb b--- (top two bits should = 0)
@@ -382,14 +434,15 @@ namespace Origami.Asm32
             if (blo == 0x06)        //0x06, 0x0e, 0x16, 0x1e
             {
                 op1 = Segment.getSeg((int)bhi);
-                instr = new Push(op1);                
+                instr = new Push(op1);
             }
 
             if ((blo == 0x07))
             {
-                if (bhi < 0x03) {                                   //0x07, 0x0f, 0x17, 0x1f
+                if (bhi < 0x03)
+                {                                   //0x07, 0x0f, 0x17, 0x1f
                     op1 = Segment.getSeg((int)bhi);
-                    instr  = new Pop(op1);
+                    instr = new Pop(op1);
                 }
                 else if (bhi < 0x06)
                 {
@@ -403,7 +456,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op45x(uint b)
+        private Instruction op45x(uint b)
         {
             Instruction instr = null;
             op1 = getReg(OPSIZE.DWord, (b % 0x08));
@@ -423,11 +476,11 @@ namespace Origami.Asm32
                     instr = new Pop(op1);
                     break;
             }
-            return instr;            
+            return instr;
         }
 
         //0X64, 0x65, 0x66, 0x67 are prefix bytes and should never get here
-        public Instruction op6x(uint b)
+        private Instruction op6x(uint b)
         {
             Instruction instr = null;
             uint bhi = (b / 0x08) % 0x08;   //--bb b--- (top two bits should = 0)
@@ -512,14 +565,14 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op7x(uint b)
+        private Instruction op7x(uint b)
         {
-            JumpConditional.CONDIT condit = (JumpConditional.CONDIT)(b % 0x10);           
+            JumpConditional.CONDIT condit = (JumpConditional.CONDIT)(b % 0x10);
             op1 = rel8();                                                               //Jb
             return new JumpConditional(op1, condit);
         }
 
-        public Instruction op8x(uint b)
+        private Instruction op8x(uint b)
         {
             Instruction instr = null;
             uint modrm = getNextByte();
@@ -577,7 +630,7 @@ namespace Origami.Asm32
                     //useModrm32 = true;                        //kludge to fix dumpbin bug
                     //if ((modrm < 0xc0) && (bhi < 0x06))         //8c 30 - 8c 3f, 8c 70 - 8c 7f, 8c b0 - 8c ff undefined
                     if ((bhi < 0x06))
-                    {                                                   
+                    {
                         op1 = getModrm(modrm, OPSIZE.Word);
                         op2 = Segment.getSeg((int)bhi);
                         instr = new Move(op1, op2);
@@ -614,7 +667,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op9x(uint b)
+        private Instruction op9x(uint b)
         {
             Instruction instr = null;
             switch (b)
@@ -671,7 +724,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction opax(uint b)
+        private Instruction opax(uint b)
         {
             Instruction instr = null;
             Immediate imm = null;
@@ -693,8 +746,8 @@ namespace Origami.Asm32
                     op2 = getReg(size, 0);
                     instr = new Move(op1, op2);
                     break;
-                
-                case 0xa4:                
+
+                case 0xa4:
                 case 0xa5:
                     op1 = new Memory(Register32.EDI, null, Memory.Mult.NONE, null, size, Segment.SEG.ES);
                     op2 = new Memory(Register32.ESI, null, Memory.Mult.NONE, null, size, Segment.SEG.DS);
@@ -707,7 +760,7 @@ namespace Origami.Asm32
                     op2 = new Memory(Register32.EDI, null, Memory.Mult.NONE, null, size, Segment.SEG.ES);
                     instr = new CompareString(op1, op2, loopprefix);
                     break;
-                
+
                 case 0xa8:
                 case 0xa9:
                     op1 = getReg(size, 0);
@@ -731,12 +784,12 @@ namespace Origami.Asm32
                 case 0xaf:
                     op1 = new Memory(Register32.EDI, null, Memory.Mult.NONE, null, size, Segment.SEG.ES);
                     instr = new ScanString(op1, loopprefix);
-                    break;                
+                    break;
             }
             return instr;
         }
 
-        public Instruction opbx(uint b)
+        private Instruction opbx(uint b)
         {
             if (b <= 0xb7)
             {
@@ -751,7 +804,7 @@ namespace Origami.Asm32
             return new Move(op1, op2);
         }
 
-        public Instruction BitOps(uint op, Operand op1, Operand op2)
+        private Instruction BitOps(uint op, Operand op1, Operand op2)
         {
             Instruction instr = null;
             switch (op)
@@ -784,7 +837,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction opcx(uint b)
+        private Instruction opcx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -805,7 +858,7 @@ namespace Origami.Asm32
                     break;
 
                 case 0xc3:
-                    instr = new Return(false);        
+                    instr = new Return(false);
                     break;
 
                 case 0xc4:
@@ -824,7 +877,7 @@ namespace Origami.Asm32
                     {
                         op1 = getModrm(modrm, size);
                         op2 = getImm(size);
-                        instr = new Move(op1, op2);        
+                        instr = new Move(op1, op2);
                     }
                     break;
 
@@ -868,7 +921,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction opd7(uint b)
+        private Instruction opd7(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -887,7 +940,7 @@ namespace Origami.Asm32
                 case 0xd3:
                     modrm = getNextByte();
                     op1 = getModrm(modrm, size);
-                    op2 = getReg(OPSIZE.Byte, 1);                    
+                    op2 = getReg(OPSIZE.Byte, 1);
                     instr = BitOps(((modrm % 0x40) / 0x08), op1, op2);
                     break;
 
@@ -903,7 +956,7 @@ namespace Origami.Asm32
                     {
                         instr = new AsciiAdjust(mode, op1);     //for bases other than 10
                     }
-                    break;                
+                    break;
 
                 case 0xd6:              //0xd6 is undefined
                     break;
@@ -918,7 +971,7 @@ namespace Origami.Asm32
 
         readonly Loop.MODE[] exloop = { Loop.MODE.LOOPNE, Loop.MODE.LOOPE, Loop.MODE.LOOP, Loop.MODE.JECXZ };
 
-        public Instruction opex(uint b)
+        private Instruction opex(uint b)
         {
             Instruction instr = null;
             OPSIZE size = (b % 2 == 0) ? OPSIZE.Byte : OPSIZE.DWord;
@@ -977,7 +1030,7 @@ namespace Origami.Asm32
         readonly SetFlag.FLAG[] fxflagset = { SetFlag.FLAG.Carry, SetFlag.FLAG.Int, SetFlag.FLAG.Dir };
 
         //0Xf0, 0xf2, 0xf3 are prefix bytes and should never get here
-        public Instruction opfx(uint b)
+        private Instruction opfx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -1002,7 +1055,7 @@ namespace Origami.Asm32
                     mode = (modrm % 0x40) / 0x08;
                     switch (mode)                       //mode == 1 is undefined
                     {
-                        case 0 :
+                        case 0:
                             op1 = getModrm(modrm, size);
                             op2 = getImm(size);
                             instr = new Test(op1, op2);
@@ -1010,12 +1063,12 @@ namespace Origami.Asm32
 
                         case 2:
                             op1 = getModrm(modrm, size);
-                            instr = new Not(op1);                            
+                            instr = new Not(op1);
                             break;
-                        
+
                         case 3:
                             op1 = getModrm(modrm, size);
-                            instr = new Negate(op1);                            
+                            instr = new Negate(op1);
                             break;
 
                         case 4:
@@ -1039,7 +1092,7 @@ namespace Origami.Asm32
                             if (b == 0xf6)
                             {
                                 op1 = getModrm(modrm, OPSIZE.Byte);
-                                instr = new IntDivide(op1);                                
+                                instr = new IntDivide(op1);
                             }
                             else
                             {
@@ -1054,7 +1107,7 @@ namespace Origami.Asm32
                 case 0xf8:
                 case 0xfa:
                 case 0xfc:
-                    instr = new ClearFlag(fxflagclear[(b - 0xf8)/2]);
+                    instr = new ClearFlag(fxflagclear[(b - 0xf8) / 2]);
                     break;
 
                 case 0xf9:
@@ -1068,8 +1121,8 @@ namespace Origami.Asm32
                     op1 = getModrm(modrm, OPSIZE.Byte);
                     mode = (modrm % 0x40) / 0x08;                   //10 - 3f, 50 - 7f \ undefined 
                     if (mode == 0)                                  //90 - bf, d0 - ff /
-                    {                        
-                        instr = new Increment(op1);                            
+                    {
+                        instr = new Increment(op1);
                     }
                     else if (mode == 1)
                     {
@@ -1129,9 +1182,9 @@ namespace Origami.Asm32
             return instr;
         }
 
-//- 80x87 instructions --------------------------------------------------------
+        //- 80x87 instructions --------------------------------------------------------
 
-        public Instruction op8087(uint b)
+        private Instruction op8087(uint b)
         {
             Instruction instr = null;
             //all 80x87 opcodes are modr/m instrs
@@ -1178,7 +1231,7 @@ namespace Origami.Asm32
                                 instr = new FStoreControlWord(op1);
                                 break;
                         }
-                        break;                    
+                        break;
 
                     case 0xda:
                         op1 = getModrm(modrm, OPSIZE.DWord);
@@ -1304,15 +1357,15 @@ namespace Origami.Asm32
                 switch (b)
                 {
                     case 0xd8:
-                        if ((range == 2) || (range == 3)) 
+                        if ((range == 2) || (range == 3))
                         {
-                            op1 = Register87.getReg((int)rm); 
+                            op1 = Register87.getReg((int)rm);
                             op2 = null;
                         }
-                        else 
+                        else
                         {
                             op1 = Register87.getReg(0);
-                            op2 = Register87.getReg((int)rm); 
+                            op2 = Register87.getReg((int)rm);
                         }
                         instr = Arithmetic87Ops(range, op1, op2, false, false, true);
                         break;
@@ -1533,7 +1586,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction Comparison87Op(Operand op1, Operand op2, bool intop, bool pop, bool doublepop, bool flags)
+        private Instruction Comparison87Op(Operand op1, Operand op2, bool intop, bool pop, bool doublepop, bool flags)
         {
             Instruction instr = null;
             if (intop)
@@ -1547,7 +1600,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction Arithmetic87Ops(uint b, Operand op1, Operand op2, bool intop, bool pop, bool rev)
+        private Instruction Arithmetic87Ops(uint b, Operand op1, Operand op2, bool intop, bool pop, bool rev)
         {
             Instruction instr = null;
             switch (b)
@@ -1670,14 +1723,14 @@ namespace Origami.Asm32
             return instr;
         }
 
-//- two byte instructions -----------------------------------------------------
+        //- two byte instructions -----------------------------------------------------
 
-        public Instruction op0f(uint b)
+        private Instruction op0f(uint b)
         {
             Instruction instr = null;
             if ((b >= 0x00) && (b <= 0x0f))
             {
-               instr = op0f0x(b);
+                instr = op0f0x(b);
             }
             else if ((b >= 0x10) && (b <= 0x1f))
             {
@@ -1742,7 +1795,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction  op0f0x(uint b)
+        private Instruction op0f0x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -1754,11 +1807,12 @@ namespace Origami.Asm32
                 //group 6 instructions
                 case 0x00:
                     modrm = getNextByte();
-                    mode = (modrm / 0x40) % 0x04;                        
+                    mode = (modrm / 0x40) % 0x04;
                     range = (modrm % 0x40) / 0x08;
                     size = ((mode == 3) && (range < 2)) ? OPSIZE.DWord : OPSIZE.Word;
                     op1 = getModrm(modrm, size);
-                    switch(range) {
+                    switch (range)
+                    {
                         case 0:
                             instr = new StoreDescriptor(op1, StoreDescriptor.MODE.SLDT);
                             break;
@@ -1783,9 +1837,10 @@ namespace Origami.Asm32
                 //group 7 instructions
                 case 0x01:
                     modrm = getNextByte();
-                    mode = (modrm / 0x40) % 0x04;                        
+                    mode = (modrm / 0x40) % 0x04;
                     range = (modrm % 0x40) / 0x08;
-                    if (mode < 3) {
+                    if (mode < 3)
+                    {
                         size = (range <= 3) ? OPSIZE.FWord : ((range % 2 == 0) ? OPSIZE.Word : OPSIZE.None);
                         op1 = getModrm(modrm, size);
                         switch (range)
@@ -1813,7 +1868,9 @@ namespace Origami.Asm32
                                 break;
                         }
 
-                    } else {
+                    }
+                    else
+                    {
 
                         //group 7 0xc1 - 0xF9 instructions not implemented yet
                     }
@@ -1857,10 +1914,10 @@ namespace Origami.Asm32
                     instr = new UndefinedOp(2);
                     break;
             }
-                        return instr;
+            return instr;
         }
 
-        public Instruction op0f1x(uint b)
+        private Instruction op0f1x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -1932,7 +1989,7 @@ namespace Origami.Asm32
                     modrm = getNextByte();
                     mode = (modrm / 0x40) % 0x04;
                     uint range = (modrm % 0x40) / 0x08;
-                    if ((mode < 3) && (range <= 3))    
+                    if ((mode < 3) && (range <= 3))
                     {
                         op1 = getModrm(modrm, OPSIZE.None);
                         instr = new SSEPrefetchData(op1, (SSEPrefetchData.MODE)range);
@@ -1942,7 +1999,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0f2x(uint b)
+        private Instruction op0f2x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2030,7 +2087,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction  op0f3x(uint b)
+        private Instruction op0f3x(uint b)
         {
             Instruction instr = null;
             switch (b)
@@ -2059,12 +2116,12 @@ namespace Origami.Asm32
                     instr = new SystemRet(SystemRet.MODE.SYSEXIT);
                     break;
 
-                    //0x0f87 instruction not implemented yet
+                //0x0f87 instruction not implemented yet
             }
             return instr;
         }
 
-        public Instruction  op0f4x(uint b)
+        private Instruction op0f4x(uint b)
         {
             uint modrm = getNextByte();
             ConditionalMove.CONDIT condit = (ConditionalMove.CONDIT)(b % 0x10);
@@ -2073,7 +2130,7 @@ namespace Origami.Asm32
             return new ConditionalMove(op1, op2, condit);
         }
 
-        public Instruction  op0f5x(uint b)
+        private Instruction op0f5x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2164,7 +2221,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction  op0f6x(uint b)
+        private Instruction op0f6x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2202,7 +2259,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction  op0f7x(uint b)
+        private Instruction op0f7x(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2228,14 +2285,14 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction  op0f8x(uint b)
+        private Instruction op0f8x(uint b)
         {
             JumpConditional.CONDIT condit = (JumpConditional.CONDIT)(b % 0x10);
             op1 = rel32();                                                               //Jz
             return new JumpConditional(op1, condit);
         }
 
-        public Instruction op0f9x(uint b)
+        private Instruction op0f9x(uint b)
         {
             uint modrm = getNextByte();
             op1 = getModrm(modrm, OPSIZE.Byte);
@@ -2243,7 +2300,7 @@ namespace Origami.Asm32
             return new SetByte(op1, condit);
         }
 
-        public Instruction op0fax(uint b)
+        private Instruction op0fax(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2344,7 +2401,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0fbx(uint b)
+        private Instruction op0fbx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2389,7 +2446,7 @@ namespace Origami.Asm32
                     modrm = getNextByte();
                     mode = (modrm / 0x40) % 0x04;
                     uint range = (modrm % 0x40) / 0x08;
-                    if (range >= 4  && range <= 8)
+                    if (range >= 4 && range <= 8)
                     {
                         op1 = getModrm(modrm, OPSIZE.DWord);
                         op2 = getImm(OPSIZE.Byte);
@@ -2416,7 +2473,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0fcx(uint b)
+        private Instruction op0fcx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2486,7 +2543,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0fdx(uint b)
+        private Instruction op0fdx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2535,7 +2592,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0fex(uint b)
+        private Instruction op0fex(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2589,7 +2646,7 @@ namespace Origami.Asm32
             return instr;
         }
 
-        public Instruction op0ffx(uint b)
+        private Instruction op0ffx(uint b)
         {
             Instruction instr = null;
             uint modrm = 0;
@@ -2619,17 +2676,17 @@ namespace Origami.Asm32
                     case 0xf7:
                         instr = new SSEStoreQuadBytes(op1, op2);
                         break;
-                        
+
                     case 0xf8:
                     case 0xf9:
                     case 0xfa:
                         instr = new MMXSubtract(op1, op2, (MMXSubtract.SIZE)(b - 0xf8), false, false);
                         break;
 
-                        case 0xfb:
+                    case 0xfb:
                         instr = new SSE2Subtract128(op1, op2);
                         break;
-                        
+
                     case 0xfc:
                     case 0xfd:
                     case 0xfe:
@@ -2644,9 +2701,9 @@ namespace Origami.Asm32
             return instr;
         }
 
-//- registers -----------------------------------------------------------------
+        //- registers -----------------------------------------------------------------
 
-        public Register getReg(OPSIZE rtype, uint reg)
+        private Register getReg(OPSIZE rtype, uint reg)
         {
             if (operandSizeOverride && (rtype == OPSIZE.DWord)) rtype = OPSIZE.Word;
             if (useModrm32 && (rtype == OPSIZE.Word)) rtype = OPSIZE.DWord;
@@ -2675,25 +2732,25 @@ namespace Origami.Asm32
             return result;
         }
 
-//- immediates ----------------------------------------------------------------
+        //- immediates ----------------------------------------------------------------
 
-        public uint getNextWord()
+        private uint getNextWord()
         {
             uint b = getNextByte();
             uint a = getNextByte();
             return (a * 256 + b);
         }
 
-        public uint getNextDWord()
+        private uint getNextDWord()
         {
             uint d = getNextByte();
             uint c = getNextByte();
             uint b = getNextByte();
             uint a = getNextByte();
-            return (((a * 256 + b) * 256 + c) * 256 + d);            
+            return (((a * 256 + b) * 256 + c) * 256 + d);
         }
 
-        public Operand getImm(OPSIZE size)
+        private Operand getImm(OPSIZE size)
         {
             if (operandSizeOverride && (size == OPSIZE.DWord)) size = OPSIZE.Word;
 
@@ -2719,7 +2776,7 @@ namespace Origami.Asm32
             return imm;
         }
 
-        public uint getOfs(OPSIZE size)
+        private uint getOfs(OPSIZE size)
         {
             uint result = 0;
             if (size == OPSIZE.Byte) result = ofs8();
@@ -2727,19 +2784,19 @@ namespace Origami.Asm32
             return result;
         }
 
-        public uint ofs8()   
+        private uint ofs8()
         {
-            return getNextByte();            
+            return getNextByte();
         }
 
-        public uint ofs32()
+        private uint ofs32()
         {
             return getNextDWord();
         }
 
-//- addresses ----------------------------------------------------------------
+        //- addresses ----------------------------------------------------------------
 
-        public Relative rel8()
+        private Relative rel8()
         {
             uint b = getNextByte();
             uint target = b + codeaddr;
@@ -2752,7 +2809,7 @@ namespace Origami.Asm32
             return addr;
         }
 
-        public Relative rel32()
+        private Relative rel32()
         {
             uint dw = getNextDWord();
             uint target = dw + codeaddr;
@@ -2760,13 +2817,13 @@ namespace Origami.Asm32
             return addr;
         }
 
-        public uint addr32()          //mem addrs aren't prefixed with '0'
+        private uint addr32()          //mem addrs aren't prefixed with '0'
         {
             uint sum = getNextDWord();
             return sum;
         }
 
-        public Absolute absolute()   //6 bytes -> ssss:aaaaaaaa
+        private Absolute absolute()   //6 bytes -> ssss:aaaaaaaa
         {
             uint addr = getNextDWord();
             uint seq = getNextWord();

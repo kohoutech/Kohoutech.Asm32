@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
 Origami Asm32 Library
-Copyright (C) 1998-2018  George E Greaney
+Copyright (C) 1998-2019  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -285,7 +285,7 @@ namespace Origami.Asm32
 
         public override string ToString()
         {
-            return "HALT";
+            return "HLT";
         }
     }
 
