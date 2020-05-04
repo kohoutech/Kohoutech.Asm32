@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
-Origami Asm32 Library
-Copyright (C) 1998-2018  George E Greaney
+Kohoutech Asm32 Library
+Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -22,15 +22,31 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Origami.Asm32
-{
-    class Symbol : Operand
-    {
-        String name;
+//pseudo instructions for the assembler
 
-        public Symbol(string _name)
+namespace Kohoutech.Asm32
+{
+    public class PseudoOp : Instruction
+    {
+        public PseudoOpType type;
+    }
+
+    public class DataDefinition : PseudoOp
+    {
+        public int size;
+        public Operand val;
+
+        public DataDefinition(int _size, Operand _val)
         {
-            name = _name;
+            type = PseudoOpType.DATADEF;
+            size = _size;
+            val = _val;
         }
     }
+
+    public enum PseudoOpType
+    {
+        DATADEF
+    }
+
 }

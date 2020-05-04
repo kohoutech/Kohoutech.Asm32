@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29613.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asm32", "Asm32\Asm32.csproj", "{0CB861CE-8992-4C33-93EE-1615DB9E3307}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0CB861CE-8992-4C33-93EE-1615DB9E3307}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0CB861CE-8992-4C33-93EE-1615DB9E3307}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0CB861CE-8992-4C33-93EE-1615DB9E3307}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0CB861CE-8992-4C33-93EE-1615DB9E3307}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AED6E54A-69C2-44D3-A95A-EE5B9D7E87B7}
+	EndGlobalSection
+EndGlobal

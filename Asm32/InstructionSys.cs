@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
-Origami Asm32 Library
-Copyright (C) 1998-2019  George E Greaney
+Kohoutech Asm32 Library
+Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -24,7 +24,7 @@ using System.Text;
 
 //system instructions - section 5.1 Intel Architecture Manual
 
-namespace Origami.Asm32
+namespace Kohoutech.Asm32
 {
 
     //LoadDescriptor - LLDT/LGDT/LIDT

@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
-Origami Asm32 Library
-Copyright (C) 1998-2019  George E Greaney
+Kohoutech Asm32 Library
+Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -25,7 +25,7 @@ using System.Text;
 //Intel 64 and IA-32 Architectures Software Developer’s Manual. Volume 2A - 2D
 //specfically Appendix A - Opcode Maps
 
-namespace Origami.Asm32
+namespace Kohoutech.Asm32
 {
     class i32Disasm
     {

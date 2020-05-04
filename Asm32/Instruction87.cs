@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
-Origami Asm32 Library
-Copyright (C) 1998-2018  George E Greaney
+Kohoutech Asm32 Library
+Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -24,7 +24,7 @@ using System.Text;
 
 //fpu instructions - section 5.2 Intel Architecture Manual (2018)
 
-namespace Origami.Asm32
+namespace Kohoutech.Asm32
 {
 
     //- data xfer -------------------------------------------------------------
