@@ -1,7 +1,7 @@
-# Kohoutech.Asm32
-library for working with the ia32 instruction set
+# Kohoutech.Intel32
+library for working with the Intel 32-bit instruction set
 
-<a href="https://kohoutech.github.io/Kohoutech.Asm32">project documentation</a><br/>
+<a href="https://kohoutech.github.io/Kohoutech.Intel32/">project documentation</a><br/>
 
-this library is available as a <a href="https://www.nuget.org/packages/Kohoutech.Asm32/">NuGet package</a><br/>
+this library is available as a <a href="https://www.nuget.org/packages/Kohoutech.Intel32/">NuGet package</a><br/>
 

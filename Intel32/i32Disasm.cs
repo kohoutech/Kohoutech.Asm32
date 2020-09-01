@@ -25,7 +25,7 @@ using System.Text;
 //Intel 64 and IA-32 Architectures Software Developer’s Manual. Volume 2A - 2D
 //specfically Appendix A - Opcode Maps
 
-namespace Kohoutech.Asm32
+namespace Kohoutech.Intel32
 {
     class i32Disasm
     {
@@ -98,7 +98,7 @@ namespace Kohoutech.Asm32
             codeaddr = codebase + srcpos;
         }
 
-        //this will disassemble the bytes in the sourc ebuf at the current pos into an intruction object
+        //this will disassemble the bytes in the source buf at the current pos into an intruction object
         //and advance the current pos to the next bytes following this instruction
         //if we read past the end of the source buf in disassembling bytes, return null
         //subsequent calls to <getInstr> will also return null (until the source pos is reset)
@@ -221,6 +221,22 @@ namespace Kohoutech.Asm32
             }
             instrBytes.Add((byte)b);
             return b;
+        }
+
+        private uint getNextWord()
+        {
+            uint b = getNextByte();
+            uint a = getNextByte();
+            return (a * 256 + b);
+        }
+
+        private uint getNextDWord()
+        {
+            uint d = getNextByte();
+            uint c = getNextByte();
+            uint b = getNextByte();
+            uint a = getNextByte();
+            return (((a * 256 + b) * 256 + c) * 256 + d);
         }
 
         //- prefixing -----------------------------------------------------------------
@@ -2733,22 +2749,6 @@ namespace Kohoutech.Asm32
         }
 
         //- immediates ----------------------------------------------------------------
-
-        private uint getNextWord()
-        {
-            uint b = getNextByte();
-            uint a = getNextByte();
-            return (a * 256 + b);
-        }
-
-        private uint getNextDWord()
-        {
-            uint d = getNextByte();
-            uint c = getNextByte();
-            uint b = getNextByte();
-            uint a = getNextByte();
-            return (((a * 256 + b) * 256 + c) * 256 + d);
-        }
 
         private Operand getImm(OPSIZE size)
         {

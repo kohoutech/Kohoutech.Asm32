@@ -1,5 +1,5 @@
 ﻿/* ----------------------------------------------------------------------------
-Kohoutech Asm32 Library
+Kohoutech Intel32 Library
 Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Kohoutech.Asm32
+namespace Kohoutech.Intel32
 {
     public enum OPSIZE { Byte, SignedByte, Word, DWord, QWord, FWord, TByte, MM, XMM, CR, DR, None };
 
@@ -133,19 +133,21 @@ namespace Kohoutech.Asm32
         }
     }
 
-//- address -------------------------------------------------------------------
+//- target address -------------------------------------------------------------------
 
     public class Relative : Operand
     {
         public uint val;
         public uint ofs;
         public OPSIZE size;
+        public Instruction target;
 
         public Relative(uint _val, uint _ofs, OPSIZE _size)
         {
             val = _val;
             ofs = _ofs;
             size = _size;
+            target = null;
         }
 
         public List<byte> getOffset()
@@ -176,7 +178,7 @@ namespace Kohoutech.Asm32
         public Absolute(uint _seg, uint _addr)
         {
             seg = _seg;
-            addr = _addr;            
+            addr = _addr;
         }
 
         public List<byte> getBytes()
@@ -308,28 +310,28 @@ namespace Kohoutech.Asm32
             switch (size)
             {
                 case OPSIZE.Byte:
-                    result = "byte ptr ";
+                    result = "BYTE PTR ";
                     break;
                 case OPSIZE.Word:
-                    result = "word ptr ";
+                    result = "WORD PTR ";
                     break;
                 case OPSIZE.DWord:
-                    result = "dword ptr ";
+                    result = "DWORD PTR ";
                     break;
                 case OPSIZE.QWord:
-                    result = "qword ptr ";
+                    result = "QWORD PTR ";
                     break;
                 case OPSIZE.FWord:
-                    result = "fword ptr ";
+                    result = "FWORD PTR ";
                     break;
                 case OPSIZE.TByte:
-                    result = "tbyte ptr ";
+                    result = "TBYTE PTR ";
                     break;
                 case OPSIZE.MM:
-                    result = "mmword ptr ";
+                    result = "MMWORD PTR ";
                     break;
                 case OPSIZE.XMM:
-                    result = "xmmword ptr ";
+                    result = "XMMWORD PTR ";
                     break;
             }
             return result;

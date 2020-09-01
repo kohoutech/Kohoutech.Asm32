@@ -1,5 +1,5 @@
 ﻿/* ----------------------------------------------------------------------------
-Kohoutech Asm32 Library
+Kohoutech Intel32 Library
 Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ using System.Text;
 
 //general instructions - section 5.20 Intel Architecture Manual (2018)
 
-namespace Kohoutech.Asm32
+namespace Kohoutech.Intel32
 {
     //- prefix instruction ---------------------------------------------------------------
 

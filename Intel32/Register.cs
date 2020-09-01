@@ -1,5 +1,5 @@
 ﻿/* ----------------------------------------------------------------------------
-Kohoutech Asm32 Library
+Kohoutech Intel32 Library
 Copyright (C) 1998-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Kohoutech.Asm32
+namespace Kohoutech.Intel32
 {
     //base class
     public class Register : Operand
@@ -407,20 +407,19 @@ namespace Kohoutech.Asm32
 
 //- seqgment ------------------------------------------------------------------
 
-    public class Segment : Operand
+    public class Segment : Register
     {
         static List<Segment> segs;
 
         public enum SEG { ES, CS, SS, DS, FS, GS};
         public SEG seg;
-        public String name;
 
-        public static Segment ES = new Segment(SEG.ES, "ES");
-        public static Segment CS = new Segment(SEG.CS, "CS");
-        public static Segment SS = new Segment(SEG.SS, "SS");
-        public static Segment DS = new Segment(SEG.DS, "DS");
-        public static Segment FS = new Segment(SEG.FS, "FS");
-        public static Segment GS = new Segment(SEG.GS, "GS");
+        public static Segment ES = new Segment(SEG.ES, "ES", 0);
+        public static Segment CS = new Segment(SEG.CS, "CS", 1);
+        public static Segment SS = new Segment(SEG.SS, "SS", 2);
+        public static Segment DS = new Segment(SEG.DS, "DS", 3);
+        public static Segment FS = new Segment(SEG.FS, "FS", 4);
+        public static Segment GS = new Segment(SEG.GS, "GS", 5);
 
         static Segment()
         {
@@ -438,10 +437,10 @@ namespace Kohoutech.Asm32
             return segs[i];
         }
 
-        public Segment(SEG _seg, String _name)
+        public Segment(SEG _seg, String name, int code) : base(name, code)
         {
             seg = _seg;
-            name = _name;        
+            size = OPSIZE.DWord;
         }
 
         public override string ToString()
